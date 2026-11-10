@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RadAware | Pre-Exam Setup</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="logo.png.jpg" alt="RadAware logo">
+    <div>
+      <h1>RadAware</h1>
+      <small>Smart Radiation Awareness System</small>
+    </div>
+  </div>
+  <nav class="nav">
+    <a href="index.html" class="active">1. Setup</a>
+    <a href="camera.html">2. Live Room</a>
+    <a href="dashboard.html">3. Dashboard</a>
+    <button id="themeBtn" type="button">🌙 Dark mode</button>
+  </nav>
+</header>
+
+<main>
+  <div class="notice">
+    <strong>Concept-stage prototype.</strong> Values shown are illustrative estimates, not measured dose,
+    and this tool does not replace personal dosimetry (TLD/OSL) or radiation-protection protocols.
+    Please use demo IDs only (for example DEMO-001); do not enter real staff data.
+  </div>
+
+  <!-- Exam details -->
+  <section class="card">
+    <h2>Exam details</h2>
+    <p class="sub">Filled in by the radiology specialist before the procedure starts.</p>
+    <div class="grid">
+      <div>
+        <label for="examId">Exam ID (automatic)</label>
+        <input type="text" id="examId" readonly>
+      </div>
+      <div>
+        <label for="procedure">Procedure type</label>
+        <select id="procedure">
+          <option>Coronary angiography</option>
+          <option>PCI (coronary intervention)</option>
+          <option>Peripheral intervention</option>
+          <option>Neuro-intervention</option>
+          <option>Embolization</option>
+          <option>Pacemaker / EP study</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div>
+        <label for="room">Room</label>
+        <input type="text" id="room" placeholder="Angio Room 1">
+      </div>
+    </div>
+  </section>
+
+  <!-- Add staff -->
+  <section class="card">
+    <h2>Add team member</h2>
+    <p class="sub">Enter each person who will be in the room. Their protective equipment is used in the dose estimate.</p>
+    <div class="grid">
+      <div>
+        <label for="staffName">Name</label>
+        <input type="text" id="staffName" placeholder="Demo Doctor">
+      </div>
+      <div>
+        <label for="staffId">Staff ID</label>
+        <input type="text" id="staffId" placeholder="DEMO-001">
+      </div>
+      <div>
+        <label for="staffRole">Role</label>
+        <select id="staffRole">
+          <option>Interventional Radiologist</option>
+          <option>Cardiologist</option>
+          <option>Radiographer / Technologist</option>
+          <option>Nurse</option>
+          <option>Anesthesia staff</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div>
+        <label for="staffApron">Lead apron</label>
+        <select id="staffApron">
+          <option value="0.5">0.5 mm Pb</option>
+          <option value="0.35">0.35 mm Pb</option>
+          <option value="0.25">0.25 mm Pb</option>
+          <option value="0">No apron</option>
+        </select>
+      </div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="staffCollar"> Thyroid collar</label>
+      <label><input type="checkbox" id="staffGlasses"> Lead glasses</label>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="addBtn">Add to team</button>
+      <button type="button" id="demoBtn">Load demo team</button>
+    </div>
+    <p class="msg" id="addMsg" role="alert"></p>
+  </section>
+
+  <!-- Team list -->
+  <section class="card">
+    <h2>Team for this exam</h2>
+    <p class="sub">Choose the primary operator. Their position is used as the reference when RadAware suggests where the others should stand.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>ID</th>
+            <th>Role</th>
+            <th>Protection</th>
+            <th>Operator</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="teamBody"></tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" id="continueBtn">Save &amp; continue to Live Room →</button>
+      <button type="button" class="danger" id="newBtn">Start new exam</button>
+    </div>
+    <p class="msg" id="mainMsg" role="alert"></p>
+  </section>
+</main>
+
+<footer>RadAware prototype · Medathon 2026 · Estimates only, not for clinical use</footer>
+
+<script src="app.js"></script>
+<script>
+  /* ----- Session (saved in this browser) ----- */
+  function newSession() {
+    const d = new Date();
+    const p = function (n) { return String(n).padStart(2, "0"); };
+    return {
+      examId: "EX-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()),
+      procedure: "Coronary angiography",
+      room: "Angio Room 1",
+      staff: [],
+      operatorId: null,
+      createdAt: d.toISOString()
+    };
+  }
+
+  let state = RA.load(RA.KEY_SESSION, null) || newSession();
+
+  function persist() { RA.save(RA.KEY_SESSION, state); }
+
+  /* ----- Page elements ----- */
+  const el = {
+    examId: document.getElementById("examId"),
+    procedure: document.getElementById("procedure"),
+    room: document.getElementById("room"),
+    name: document.getElementById("staffName"),
+    id: document.getElementById("staffId"),
+    role: document.getElementById("staffRole"),
+    apron: document.getElementById("staffApron"),
+    collar: document.getElementById("staffCollar"),
+    glasses: document.getElementById("staffGlasses"),
+    addMsg: document.getElementById("addMsg"),
+    mainMsg: document.getElementById("mainMsg"),
+    body: document.getElementById("teamBody")
+  };
+
+  function showMsg(target, text, type) {
+    target.textContent = text;
+    target.className = "msg " + (type || "");
+  }
+
+  /* ----- Draw the page from the saved data ----- */
+  function render() {
+    el.examId.value = state.examId;
+    el.procedure.value = state.procedure;
+    el.room.value = state.room;
+
+    if (state.staff.length === 0) {
+      el.body.innerHTML = '<tr><td colspan="6" class="empty">No team members yet. Add someone above.</td></tr>';
+      return;
+    }
+
+    el.body.innerHTML = state.staff.map(function (s) {
+      const apron = s.apron > 0 ? s.apron + " mm Pb apron" : "No apron";
+      const extras =
+        (s.collar ? '<span class="tag">Thyroid collar</span>' : "") +
+        (s.glasses ? '<span class="tag">Lead glasses</span>' : "");
+      const checked = state.operatorId === s.id ? "checked" : "";
+      return "<tr>" +
+        "<td>" + RA.escapeHtml(s.name) + "</td>" +
+        "<td>" + RA.escapeHtml(s.id) + "</td>" +
+        "<td>" + RA.escapeHtml(s.role) + "</td>" +
+        '<td><span class="tag">' + apron + "</span>" + extras + "</td>" +
+        '<td><input type="radio" name="operator" data-op="' + RA.escapeHtml(s.id) + '" ' + checked + "></td>" +
+        '<td><button type="button" class="danger" data-remove="' + RA.escapeHtml(s.id) + '">Remove</button></td>' +
+        "</tr>";
+    }).join("");
+  }
+
+  /* ----- Actions ----- */
+  function addStaff() {
+    const name = el.name.value.trim();
+    const id = el.id.value.trim();
+
+    if (!name || !id) {
+      showMsg(el.addMsg, "Please enter both a name and a staff ID.", "error");
+      return;
+    }
+    const duplicate = state.staff.some(function (s) { return s.id.toLowerCase() === id.toLowerCase(); });
+    if (duplicate) {
+      showMsg(el.addMsg, "This staff ID is already in the team.", "error");
+      return;
+    }
+
+    state.staff.push({
+      name: name,
+      id: id,
+      role: el.role.value,
+      apron: parseFloat(el.apron.value),
+      collar: el.collar.checked,
+      glasses: el.glasses.checked
+    });
+    if (!state.operatorId) state.operatorId = id;
+
+    persist();
+    render();
+    el.name.value = "";
+    el.id.value = "";
+    el.collar.checked = false;
+    el.glasses.checked = false;
+    showMsg(el.addMsg, name + " added.", "ok");
+    el.name.focus();
+  }
+
+  function loadDemo() {
+    state.staff = [
+      { name: "Demo Doctor",       id: "DEMO-001", role: "Interventional Radiologist",  apron: 0.5,  collar: true,  glasses: true  },
+      { name: "Demo Assistant",    id: "DEMO-002", role: "Cardiologist",                apron: 0.5,  collar: true,  glasses: false },
+      { name: "Demo Nurse",        id: "DEMO-003", role: "Nurse",                       apron: 0.35, collar: false, glasses: false },
+      { name: "Demo Technologist", id: "DEMO-004", role: "Radiographer / Technologist", apron: 0.35, collar: true,  glasses: false }
+    ];
+    state.operatorId = "DEMO-001";
+    persist();
+    render();
+    showMsg(el.addMsg, "Demo team loaded.", "ok");
+  }
+
+  function continueToRoom() {
+    if (state.staff.length === 0) {
+      showMsg(el.mainMsg, "Add at least one team member first.", "error");
+      return;
+    }
+    if (!state.operatorId) {
+      showMsg(el.mainMsg, "Please choose the primary operator.", "error");
+      return;
+    }
+    state.status = "ready";
+    persist();
+    showMsg(el.mainMsg, "Saved. Opening the Live Room...", "ok");
+    window.location.href = "camera.html";
+  }
+
+  function startNew() {
+    if (confirm("Clear the current team and start a new exam?")) {
+      state = newSession();
+      persist();
+      render();
+      showMsg(el.mainMsg, "New exam started.", "ok");
+    }
+  }
+
+  /* ----- Connect buttons ----- */
+  document.getElementById("addBtn").addEventListener("click", addStaff);
+  document.getElementById("demoBtn").addEventListener("click", loadDemo);
+  document.getElementById("continueBtn").addEventListener("click", continueToRoom);
+  document.getElementById("newBtn").addEventListener("click", startNew);
+
+  el.procedure.addEventListener("change", function () { state.procedure = el.procedure.value; persist(); });
+  el.room.addEventListener("input", function () { state.room = el.room.value; persist(); });
+
+  el.id.addEventListener("keydown", function (e) { if (e.key === "Enter") addStaff(); });
+
+  el.body.addEventListener("click", function (e) {
+    const removeId = e.target.getAttribute("data-remove");
+    if (removeId) {
+      state.staff = state.staff.filter(function (s) { return s.id !== removeId; });
+      if (state.operatorId === removeId) {
+        state.operatorId = state.staff.length ? state.staff[0].id : null;
+      }
+      persist();
+      render();
+    }
+  });
+
+  el.body.addEventListener("change", function (e) {
+    const opId = e.target.getAttribute("data-op");
+    if (opId) {
+      state.operatorId = opId;
+      persist();
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
