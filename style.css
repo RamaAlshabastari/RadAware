@@ -1,0 +1,154 @@
+/* ===== RadAware shared styles ===== */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --text: #1c1f26;
+  --muted: #5d6573;
+  --border: #d9dce3;
+  --accent: #5b5fd6;
+  --accent-2: #7c4dbc;
+  --accent-text: #ffffff;
+  --danger: #c0392b;
+  --warn: #b7791f;
+  --ok: #2f855a;
+  --radius: 12px;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f1115;
+  --surface: #181b22;
+  --surface-2: #222632;
+  --text: #e8eaf0;
+  --muted: #9aa3b2;
+  --border: #2d3240;
+  --accent: #7b82f0;
+  --accent-2: #a077e0;
+  --accent-text: #0f1115;
+  --danger: #ef6b5b;
+  --warn: #e6b04c;
+  --ok: #5cc48f;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+/* ----- Header ----- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand img { height: 44px; width: auto; border-radius: 8px; background: #fff; }
+.brand h1 { font-size: 1.1rem; margin: 0; }
+.brand small { color: var(--muted); display: block; font-size: 0.75rem; }
+
+.nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+.nav a:hover { background: var(--surface-2); color: var(--text); }
+.nav a.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+}
+
+/* ----- Layout ----- */
+main { max-width: 1100px; margin: 24px auto; padding: 0 16px 48px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.card h2 { margin: 0 0 4px; font-size: 1.1rem; }
+.card .sub { margin: 0 0 16px; color: var(--muted); font-size: 0.9rem; }
+
+.notice {
+  border-left: 4px solid var(--warn);
+  background: var(--surface-2);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  margin-bottom: 20px;
+}
+
+/* ----- Forms ----- */
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
+input[type="text"], select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+input[type="text"]:focus, select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.checks { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); }
+
+/* ----- Buttons ----- */
+button, .btn {
+  font-family: inherit;
+  font-size: 0.92rem;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.08); }
+button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border: none;
+  font-weight: 600;
+}
+button.danger { color: var(--danger); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+/* ----- Table ----- */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.empty { color: var(--muted); text-align: center; padding: 24px 8px; }
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.78rem;
+  margin-right: 4px;
+}
+
+/* ----- Messages ----- */
+.msg { min-height: 1.4em; font-size: 0.9rem; margin: 10px 0 0; }
+.msg.error { color: var(--danger); }
+.msg.ok { color: var(--ok); }
+
+footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 24px 16px; }
