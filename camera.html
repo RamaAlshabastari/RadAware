@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RadAware | Live Room</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    [hidden] { display: none !important; }
+    .live { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .live { grid-template-columns: 1fr; } }
+    canvas { width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); touch-action: none; cursor: grab; }
+    .topline { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .topline h2 { margin: 0; }
+    .badge { padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; background: var(--surface-2); color: var(--muted); }
+    .badge.on { background: var(--danger); color: #fff; }
+    .legend { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--muted); margin-top: 10px; }
+    .legend .bar { flex: 1; height: 10px; border-radius: 5px; background: linear-gradient(90deg, hsl(120,80%,45%), hsl(60,80%,45%), hsl(0,80%,45%)); }
+    .range-row { margin-bottom: 14px; }
+    .range-row .head { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
+    .range-row .head span:last-child { font-weight: 600; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); }
+    .alertbox { border-left: 4px solid var(--warn); background: var(--surface-2); padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 0.92rem; }
+    .alertbox.critical { border-left-color: var(--danger); }
+    .stat { font-size: 0.9rem; color: var(--muted); margin: 8px 0 0; }
+    td select { max-width: 190px; }
+    .small { font-size: 0.8rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="logo.png.jpg" alt="RadAware logo">
+    <div>
+      <h1>RadAware</h1>
+      <small>Smart Radiation Awareness System</small>
+    </div>
+  </div>
+  <nav class="nav">
+    <a href="index.html">1. Setup</a>
+    <a href="camera.html" class="active">2. Live Room</a>
+    <a href="dashboard.html">3. Dashboard</a>
+    <button id="themeBtn" type="button">🌙 Dark mode</button>
+  </nav>
+</header>
+
+<main>
+  <div class="notice">
+    <strong>Simulation mode.</strong> The camera and the X-ray receptor are simulated: drag people on the room view and use the
+    sliders to represent the receptor reading. All values are illustrative estimates, not measured dose.
+  </div>
+
+  <section class="card" id="noSession" hidden>
+    <h2>No exam set up yet</h2>
+    <p class="sub">Please add the team members first.</p>
+    <a class="btn" href="index.html">← Go to Setup</a>
+  </section>
+
+  <div class="alertbox" id="alertBox" hidden></div>
+
+  <div class="live" id="app">
+    <!-- LEFT: room view -->
+    <section class="card">
+      <div class="topline">
+        <h2>Live room view (simulated ceiling camera)</h2>
+        <span class="badge" id="beamBadge">X-RAY OFF</span>
+      </div>
+      <canvas id="room" width="720" height="600"></canvas>
+      <div class="legend">
+        <span>Low</span><div class="bar"></div><span>High</span>
+      </div>
+      <p class="small">Colours show estimated unshielded scatter at each point of the floor. Drag a person to move them.
+        Faded colours mean the X-ray is off (preview only).</p>
+    </section>
+
+    <!-- RIGHT: controls -->
+    <div>
+      <section class="card">
+        <h2>Exposure inputs (simulated receptor)</h2>
+        <p class="sub">In the real system these come from the imaging unit.</p>
+
+        <div class="range-row">
+          <div class="head"><span>Dose-rate reading</span><span id="rateVal">20 mGy/min</span></div>
+          <input type="range" id="rate" min="0" max="60" step="1" value="20">
+        </div>
+        <div class="range-row">
+          <div class="head"><span>Tube potential</span><span id="kvpVal">80 kVp</span></div>
+          <input type="range" id="kvp" min="60" max="125" step="1" value="80">
+        </div>
+        <div class="range-row">
+          <div class="head"><span>Field size</span><span id="fieldVal">25 cm</span></div>
+          <input type="range" id="field" min="10" max="40" step="1" value="25">
+        </div>
+        <div class="range-row">
+          <div class="head"><span>C-arm angle</span><span id="angleVal">AP (0°)</span></div>
+          <input type="range" id="angle" min="-90" max="90" step="5" value="0">
+        </div>
+        <div>
+          <label for="speed">Demo speed</label>
+          <select id="speed">
+            <option value="1">x1 (real time)</option>
+            <option value="10">x10</option>
+            <option value="60" selected>x60</option>
+            <option value="300">x300</option>
+          </select>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="primary" id="beamBtn">Start X-ray</button>
+          <button type="button" id="suggestBtn">Suggest positions</button>
+          <button type="button" id="resetBtn">Reset positions</button>
+        </div>
+        <p class="stat">Beam-on time (simulated): <strong id="beamTime">00:00</strong></p>
+        <p class="msg" id="suggestMsg"></p>
+      </section>
+
+      <section class="card">
+        <h2>People in the room</h2>
+        <p class="sub">Link each person on the camera view to their staff ID. Doses include the apron and glasses entered in Setup.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Staff ID</th>
+                <th>Now (µSv/h)</th>
+                <th>This exam (µSv)<br><span class="small">body / lens</span></th>
+                <th>Annual limit used</th>
+              </tr>
+            </thead>
+            <tbody id="peopleBody"></tbody>
+          </table>
+        </div>
+        <div class="actions">
+          <button type="button" class="primary" id="finishBtn">Finish &amp; save exam →</button>
+        </div>
+        <p class="msg" id="finishMsg" role="alert"></p>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>RadAware prototype · Medathon 2026 · Estimates only, not for clinical use</footer>
+
+<script src="app.js"></script>
+<script src="config.js"></script>
+<script>
+(function main() {
+  const CFG = RA_CONFIG;
+  const session = RA.load(RA.KEY_SESSION, null);
+  const noSession = document.getElementById("noSession");
+  const appEl = document.getElementById("app");
+
+  if (!session || !session.staff || session.staff.length === 0) {
+    noSession.hidden = false;
+    appEl.hidden = true;
+    return;
+  }
+
+  /* ---------- Room geometry (metres) ---------- */
+  const PX = 120;                                   // pixels per metre (canvas 720 x 600 = 6 m x 5 m)
+  const ROOM = { w: 6, h: 5 };
+  const ISO = { x: 3, y: 2.5 };
+  const TABLE = { x0: 2.65, y0: 1.5, x1: 3.35, y1: 3.5 };
+
+  function inTable(x, y, margin) {
+    const m = margin || 0;
+    return x >= TABLE.x0 - m && x <= TABLE.x1 + m && y >= TABLE.y0 - m && y <= TABLE.y1 + m;
+  }
+
+  /* ---------- Inputs ---------- */
+  const inputs = { rate: 20, kvp: 80, field: 25, angle: 0 };
+  let speed = 60;
+  let beamOn = false;
+  let beamSeconds = 0;
+
+  /* ---------- People ---------- */
+  const staffList = session.staff.slice().sort(function (a, b) {
+    return (a.id === session.operatorId ? -1 : 0) - (b.id === session.operatorId ? -1 : 0);
+  });
+
+  const DEFAULT_POS = [
+    { x: 2.2, y: 2.2 }, { x: 3.9, y: 2.2 }, { x: 2.3, y: 3.9 },
+    { x: 3.9, y: 3.8 }, { x: 1.2, y: 2.6 }, { x: 4.8, y: 2.6 }
+  ];
+
+  function defaultPosition(i) {
+    const base = DEFAULT_POS[i % DEFAULT_POS.length];
+    const shift = Math.floor(i / DEFAULT_POS.length) * 0.35;
+    return { x: base.x, y: Math.min(base.y + shift, ROOM.h - 0.3) };
+  }
+
+  const people = staffList.map(function (s, i) {
+    const pos = defaultPosition(i);
+    return { x: pos.x, y: pos.y, staffId: s.id, eff: 0, lens: 0 };
+  });
+
+  function staffById(id) {
+    return session.staff.find(function (s) { return s.id === id; });
+  }
+
+  /* ---------- Simplified scatter model (illustrative) ---------- */
+  function ambientRate(x, y) {
+    const dx = x - ISO.x;
+    const dy = y - ISO.y;
+    const r = Math.max(Math.hypot(dx, dy), CFG.model.minDistance);
+    const fieldFactor = Math.pow(inputs.field / CFG.model.referenceFieldCm, CFG.model.fieldExponent);
+    const baseAt1m = inputs.rate * 60 * 1000 * CFG.model.scatterFractionAt1m * fieldFactor; // microSv/h at 1 m
+    const side = Math.sin(inputs.angle * Math.PI / 180) * (dx / r);
+    const lobe = Math.max(0.4, 1 + CFG.model.angularBias * side);
+    return (baseAt1m * lobe) / (r * r);
+  }
+
+  function apronTransmission(thickness) {
+    if (!thickness) return 1;
+    const t0 = CFG.model.apronTransmission[String(thickness)];
+    const base = (t0 === undefined) ? 1 : t0;
+    return Math.min(1, base * (1 + (inputs.kvp - CFG.model.kvpReference) * CFG.model.kvpSlope));
+  }
+
+  function personRates(p) {
+    const s = staffById(p.staffId);
+    const amb = ambientRate(p.x, p.y);
+    return {
+      amb: amb,
+      eff: amb * apronTransmission(s.apron),
+      lens: amb * (s.glasses ? CFG.model.glassesFactor : 1)
+    };
+  }
+
+  /* ---------- Totals from earlier exams (this calendar year) ---------- */
+  const priorCache = {};
+  function prior(id) {
+    if (!priorCache[id]) {
+      const year = new Date().getFullYear();
+      const exams = RA.load(RA.KEY_EXAMS, []).filter(function (e) {
+        return e.examId !== session.examId && new Date(e.date).getFullYear() === year;
+      });
+      let eff = 0, lens = 0;
+      exams.forEach(function (e) {
+        (e.staff || []).forEach(function (s) {
+          if (s.id === id) { eff += s.effective_uSv || 0; lens += s.lens_uSv || 0; }
+        });
+      });
+      priorCache[id] = { eff: eff, lens: lens };
+    }
+    return priorCache[id];
+  }
+
+  function annualPercent(p) {
+    const pr = prior(p.staffId);
+    const effPct = ((pr.eff + p.eff) / 1000) / CFG.limits.effective_mSv_year * 100;
+    const lensPct = ((pr.lens + p.lens) / 1000) / CFG.limits.lens_mSv_year * 100;
+    return Math.max(effPct, lensPct);
+  }
+
+  /* ---------- Drawing ---------- */
+  const canvas = document.getElementById("room");
+  const ctx = canvas.getContext("2d");
+
+  function heatColor(v, alpha) {
+    const lo = Math.log10(CFG.display.minUSvh);
+    const hi = Math.log10(CFG.display.maxUSvh);
+    const t = Math.min(1, Math.max(0, (Math.log10(Math.max(v, 0.001)) - lo) / (hi - lo)));
+    return "hsla(" + Math.round(120 * (1 - t)) + ",80%,45%," + alpha + ")";
+  }
+
+  function draw() {
+    const W = canvas.width, H = canvas.height;
+    const cs = getComputedStyle(document.documentElement);
+    const cBg = cs.getPropertyValue("--surface-2").trim();
+    const cText = cs.getPropertyValue("--text").trim();
+    const cBorder = cs.getPropertyValue("--border").trim();
+    const cAccent = cs.getPropertyValue("--accent").trim();
+    const cDanger = cs.getPropertyValue("--danger").trim();
+    const cWarn = cs.getPropertyValue("--warn").trim();
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = cBg;
+    ctx.fillRect(0, 0, W, H);
+
+    /* heat map */
+    const cell = 15;
+    const alpha = beamOn ? 0.65 : 0.22;
+    for (let cx = 0; cx < W / cell; cx++) {
+      for (let cy = 0; cy < H / cell; cy++) {
+        const x = (cx + 0.5) * cell / PX;
+        const y = (cy + 0.5) * cell / PX;
+        if (inTable(x, y, 0)) continue;
+        ctx.fillStyle = heatColor(ambientRate(x, y), alpha);
+        ctx.fillRect(cx * cell, cy * cell, cell, cell);
+      }
+    }
+
+    /* table */
+    ctx.fillStyle = "rgba(130,140,160,0.95)";
+    ctx.fillRect(TABLE.x0 * PX, TABLE.y0 * PX, (TABLE.x1 - TABLE.x0) * PX, (TABLE.y1 - TABLE.y0) * PX);
+    ctx.fillStyle = "#fff";
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Table", ISO.x * PX, TABLE.y0 * PX + 16);
+
+    /* C-arm isocentre and tube side */
+    ctx.beginPath();
+    ctx.arc(ISO.x * PX, ISO.y * PX, 9, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = cText;
+    ctx.stroke();
+    if (inputs.angle !== 0) {
+      const dir = inputs.angle > 0 ? 1 : -1;
+      const ax = ISO.x * PX + dir * 34;
+      ctx.beginPath();
+      ctx.moveTo(ISO.x * PX + dir * 14, ISO.y * PX);
+      ctx.lineTo(ax, ISO.y * PX);
+      ctx.strokeStyle = cText;
+      ctx.stroke();
+      ctx.fillStyle = cText;
+      ctx.fillText("tube side", ax + dir * 30, ISO.y * PX + 4);
+    }
+
+    /* room border */
+    ctx.strokeStyle = cBorder;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, W - 4, H - 4);
+
+    /* people */
+    people.forEach(function (p, i) {
+      const pct = annualPercent(p);
+      let color = cAccent;
+      if (pct >= CFG.alerts.criticalPercent) color = cDanger;
+      else if (pct >= CFG.alerts.warnPercent) color = cWarn;
+
+      const px = p.x * PX, py = p.y * PX;
+      ctx.beginPath();
+      ctx.arc(px, py, 16, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = (p.staffId === session.operatorId) ? 4 : 2;
+      ctx.strokeStyle = (p.staffId === session.operatorId) ? cText : "#fff";
+      ctx.stroke();
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 13px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(String(i + 1), px, py + 5);
+
+      ctx.fillStyle = cText;
+      ctx.font = "11px sans-serif";
+      ctx.fillText(p.staffId, px, py + 32);
+    });
+  }
+
+  /* ---------- Dragging people ---------- */
+  let dragging = null;
+
+  function pointerPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (canvas.width / r.width) / PX,
+      y: (e.clientY - r.top) * (canvas.height / r.height) / PX
+    };
+  }
+
+  canvas.addEventListener("pointerdown", function (e) {
+    const m = pointerPos(e);
+    let best = null, bestD = 0.25;
+    people.forEach(function (p) {
+      const d = Math.hypot(p.x - m.x, p.y - m.y);
+      if (d < bestD) { bestD = d; best = p; }
+    });
+    if (best) {
+      dragging = best;
+      canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = "grabbing";
+    }
+  });
+
+  canvas.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    const m = pointerPos(e);
+    dragging.x = Math.min(ROOM.w - 0.15, Math.max(0.15, m.x));
+    dragging.y = Math.min(ROOM.h - 0.15, Math.max(0.15, m.y));
+    draw();
+    updatePanel();
+  });
+
+  function endDrag() { dragging = null; canvas.style.cursor = "grab"; }
+  canvas.addEventListener("pointerup", endDrag);
+  canvas.addEventListener("pointercancel", endDrag);
+
+  /* ---------- People table ---------- */
+  const tbody = document.getElementById("peopleBody");
+  const rows = [];
+
+  function syncSelects() {
+    rows.forEach(function (r, i) { r.sel.value = people[i].staffId; });
+  }
+
+  people.forEach(function (p, i) {
+    const tr = document.createElement("tr");
+
+    const tdNum = document.createElement("td");
+    tdNum.textContent = String(i + 1);
+
+    const tdSel = document.createElement("td");
+    const sel = document.createElement("select");
+    session.staff.forEach(function (s) {
+      const o = document.createElement("option");
+      o.value = s.id;
+      o.textContent = s.id + " · " + s.name;
+      sel.appendChild(o);
+    });
+    sel.value = p.staffId;
+    sel.addEventListener("change", function () {
+      const newId = sel.value;
+      const other = people.find(function (q) { return q !== p && q.staffId === newId; });
+      if (other) other.staffId = p.staffId;   // swap so each ID is used once
+      p.staffId = newId;
+      syncSelects();
+      draw();
+      updatePanel();
+    });
+    tdSel.appendChild(sel);
+
+    const tdNow = document.createElement("td");
+    const tdExam = document.createElement("td");
+    const tdPct = document.createElement("td");
+
+    tr.appendChild(tdNum);
+    tr.appendChild(tdSel);
+    tr.appendChild(tdNow);
+    tr.appendChild(tdExam);
+    tr.appendChild(tdPct);
+    tbody.appendChild(tr);
+
+    rows.push({ sel: sel, now: tdNow, exam: tdExam, pct: tdPct });
+  });
+
+  const alertBox = document.getElementById("alertBox");
+
+  function updatePanel() {
+    let worst = null;
+    people.forEach(function (p, i) {
+      const r = personRates(p);
+      const pct = annualPercent(p);
+      rows[i].now.textContent = r.eff.toFixed(1);
+      rows[i].exam.textContent = p.eff.toFixed(2) + " / " + p.lens.toFixed(2);
+      rows[i].pct.textContent = pct.toFixed(2) + "%";
+      rows[i].pct.style.color = pct >= CFG.alerts.criticalPercent ? "var(--danger)" :
+                                pct >= CFG.alerts.warnPercent ? "var(--warn)" : "";
+      rows[i].sel.disabled = beamSeconds > 0;
+      if (!worst || pct > worst.pct) worst = { pct: pct, p: p };
+    });
+
+    if (worst && worst.pct >= CFG.alerts.warnPercent) {
+      const s = staffById(worst.p.staffId);
+      const critical = worst.pct >= CFG.alerts.criticalPercent;
+      alertBox.hidden = false;
+      alertBox.className = "alertbox" + (critical ? " critical" : "");
+      alertBox.textContent = (critical ? "ALERT: " : "Warning: ") + s.name + " (" + s.id + ") has used an estimated " +
+        worst.pct.toFixed(1) + "% of the annual limit. A TLD/OSL reading is recommended now, even if the scheduled check is not due.";
+    } else {
+      alertBox.hidden = true;
+    }
+
+    const mm = String(Math.floor(beamSeconds / 60)).padStart(2, "0");
+    const ss = String(Math.floor(beamSeconds % 60)).padStart(2, "0");
+    document.getElementById("beamTime").textContent = mm + ":" + ss;
+  }
+
+  /* ---------- Controls ---------- */
+  function bindSlider(id, key, labelId, format) {
+    const input = document.getElementById(id);
+    const label = document.getElementById(labelId);
+    function apply() {
+      inputs[key] = parseFloat(input.value);
+      label.textContent = format(inputs[key]);
+      draw();
+      updatePanel();
+    }
+    input.addEventListener("input", apply);
+    apply();
+  }
+
+  bindSlider("rate", "rate", "rateVal", function (v) { return v + " mGy/min"; });
+  bindSlider("kvp", "kvp", "kvpVal", function (v) { return v + " kVp"; });
+  bindSlider("field", "field", "fieldVal", function (v) { return v + " cm"; });
+  bindSlider("angle", "angle", "angleVal", function (v) {
+    if (v === 0) return "AP (0°)";
+    return (v < 0 ? "RAO " : "LAO ") + Math.abs(v) + "°";
+  });
+
+  document.getElementById("speed").addEventListener("change", function (e) {
+    speed = parseFloat(e.target.value);
+  });
+
+  const beamBtn = document.getElementById("beamBtn");
+  const beamBadge = document.getElementById("beamBadge");
+  beamBtn.addEventListener("click", function () {
+    beamOn = !beamOn;
+    beamBtn.textContent = beamOn ? "Stop X-ray" : "Start X-ray";
+    beamBadge.textContent = beamOn ? "X-RAY ON" : "X-RAY OFF";
+    beamBadge.className = "badge" + (beamOn ? " on" : "");
+    draw();
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    people.forEach(function (p, i) {
+      const pos = defaultPosition(i);
+      p.x = pos.x;
+      p.y = pos.y;
+    });
+    document.getElementById("suggestMsg").textContent = "";
+    draw();
+    updatePanel();
+  });
+
+  function totalEffRate() {
+    return people.reduce(function (sum, p) { return sum + personRates(p).eff; }, 0);
+  }
+
+  document.getElementById("suggestBtn").addEventListener("click", function () {
+    const before = totalEffRate();
+    const opIdx = people.findIndex(function (p) { return p.staffId === session.operatorId; });
+    const placed = [];
+    if (opIdx >= 0) placed.push(people[opIdx]);   // the operator stays at the reference position
+
+    const candidates = [];
+    for (let x = 0.4; x <= ROOM.w - 0.4; x += 0.2) {
+      for (let y = 0.4; y <= ROOM.h - 0.4; y += 0.2) {
+        if (inTable(x, y, 0.35)) continue;
+        const d = Math.hypot(x - ISO.x, y - ISO.y);
+        if (d < 0.9 || d > CFG.suggest.maxDistance) continue;
+        candidates.push({ x: x, y: y });
+      }
+    }
+
+    people.forEach(function (p, i) {
+      if (i === opIdx) return;
+      const T = apronTransmission(staffById(p.staffId).apron);
+      let best = null, bestV = Infinity;
+      candidates.forEach(function (c) {
+        const tooClose = placed.some(function (q) {
+          return Math.hypot(q.x - c.x, q.y - c.y) < CFG.suggest.minSeparation;
+        });
+        if (tooClose) return;
+        const v = ambientRate(c.x, c.y) * T;
+        if (v < bestV) { bestV = v; best = c; }
+      });
+      if (best) { p.x = best.x; p.y = best.y; }
+      placed.push(p);
+    });
+
+    const after = totalEffRate();
+    document.getElementById("suggestMsg").textContent =
+      "Suggested positions applied (operator kept at the reference spot). Estimated total body dose rate: " +
+      before.toFixed(1) + " → " + after.toFixed(1) + " µSv/h (illustrative).";
+    document.getElementById("suggestMsg").className = "msg ok";
+    draw();
+    updatePanel();
+  });
+
+  document.getElementById("finishBtn").addEventListener("click", function () {
+    const msg = document.getElementById("finishMsg");
+    if (beamSeconds === 0 && !confirm("The X-ray was never switched on. Save an empty record anyway?")) return;
+
+    const record = {
+      examId: session.examId,
+      procedure: session.procedure,
+      room: session.room,
+      date: new Date().toISOString(),
+      beamOnSeconds: Math.round(beamSeconds),
+      modelVersion: CFG.version,
+      staff: people.map(function (p) {
+        const s = staffById(p.staffId);
+        return {
+          id: s.id,
+          name: s.name,
+          role: s.role,
+          effective_uSv: Number(p.eff.toFixed(3)),
+          lens_uSv: Number(p.lens.toFixed(3))
+        };
+      })
+    };
+
+    const exams = RA.load(RA.KEY_EXAMS, []).filter(function (e) { return e.examId !== record.examId; });
+    exams.push(record);
+    const ok = RA.save(RA.KEY_EXAMS, exams);
+    if (!ok) {
+      msg.textContent = "Could not save in this browser.";
+      msg.className = "msg error";
+      return;
+    }
+    session.status = "completed";
+    RA.save(RA.KEY_SESSION, session);
+    msg.textContent = "Exam saved. Opening the Dashboard...";
+    msg.className = "msg ok";
+    window.location.href = "dashboard.html";
+  });
+
+  /* ---------- Clock: accumulate dose while the X-ray is on ---------- */
+  let lastTs = performance.now();
+  setInterval(function () {
+    const now = performance.now();
+    const real = (now - lastTs) / 1000;
+    lastTs = now;
+    if (beamOn) {
+      const dt = real * speed;
+      beamSeconds += dt;
+      people.forEach(function (p) {
+        const r = personRates(p);
+        p.eff += r.eff * dt / 3600;
+        p.lens += r.lens * dt / 3600;
+      });
+    }
+    draw();
+    updatePanel();
+  }, 200);
+
+  draw();
+  updatePanel();
+})();
+</script>
+</body>
+</html>
