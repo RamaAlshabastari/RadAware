@@ -46,9 +46,51 @@ Other features: dark and light mode, responsive layout, and a "Load demo history
 
 ## Screenshots
 
-| Setup | Live Room | Dashboard |
-|---|---|---|
-| ![Setup](screenshot-setup.png) | ![Live Room](screenshot-live-room.png) | ![Dashboard](screenshot-dashboard.png) |
+### 1. Setup
+
+<p>
+  <img src="screenshots/setup-1-demo-team.png" alt="Setup page with the demo team" width="49%">
+  <img src="screenshots/setup-2-dark-mode.png" alt="Setup page in dark mode" width="49%">
+</p>
+
+*Left: team members with their protective equipment and the primary operator. Right: dark mode.*
+
+<p>
+  <img src="screenshots/setup-2-dark-mode2.png" alt="Team list in dark mode" width="49%">
+</p>
+
+*Dark mode: the team list for the exam.*
+
+### 2. Live Room
+
+<p>
+  <img src="screenshots/live-1-xray-off.png" alt="Live room with the X-ray off" width="49%">
+  <img src="screenshots/live-2-xray-on.png" alt="Live room with the X-ray on and the heat map" width="49%">
+</p>
+
+*Left: X-ray off, faded preview of the scatter field. Right: X-ray on, live heat map and per-person dose.*
+
+<p>
+  <img src="screenshots/live-3-suggested-positions.png" alt="Suggested lower-dose positions" width="49%">
+  <img src="screenshots/live-4-alert.png" alt="Team panel flagging a person above the annual limit" width="49%">
+</p>
+
+*Left: suggested lower-dose positions with the operator kept at the reference spot. Right: team panel flagging a person above the annual limit.*
+
+### 3. Dashboard
+
+<p>
+  <img src="screenshots/dashboard-1-overview.png" alt="Dashboard: annual exposure per staff member" width="49%">
+  <img src="screenshots/dashboard-2-alert.png" alt="Dashboard: TLD/OSL check alert" width="49%">
+</p>
+
+*Left: annual exposure per staff member. Right: alert recommending a TLD/OSL check.*
+
+<p>
+  <img src="screenshots/dashboard-3-history.png" alt="Dashboard: exam history" width="49%">
+</p>
+
+*Exam history with the estimate for each person.*
 
 ## How the estimate works (simplified)
 
